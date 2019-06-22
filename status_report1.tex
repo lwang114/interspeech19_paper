@@ -1,0 +1,270 @@
+\documentclass[a4paper]{article}
+
+\usepackage{INTERSPEECH2018}
+\usepackage{hyperref}
+\usepackage{comment}
+
+\title{Status Report 1: Jan. $21^{st}$}
+\name{Liming Wang$^1$}
+\address{University of Illinois, Urbana Champaign}
+\email{lwang114@illinois.edu}
+
+\begin{document}
+\maketitle
+\section{Introduction}
+Generating embedding vectors for concepts in spoken 
+language
+and images
+without any textual description is useful for tasks
+that require automatic understanding of under-resource languages, such as name entity recognition and
+automatic word unit discovery. In the long run, it
+may also have a impact on active learning robots that
+learn to use a language by hearing people talking.
+An embedding that not only
+captures similarities of words with similar sounds but also with 
+similar meanings as defined by the visual scene it 
+corresponds to is, however, challenging. One challenge
+is that the mapping between word sound and the
+visual object is in general, random for most human
+language, and as a result, the standard Gaussian 
+assumption or cosine similarity fails to capture the
+ meaning of spoken sounds. This is in sharp contrast
+ with lower-level task such as speech recognition
+ or speaker identification, where
+ speech segments tends to represent the same
+ token with speech segments that are closer in amplitude to them and different token that are further. 
+ 
+ Another challenge is that the mapping between speech
+ and image may not be one to one in either direction.
+ For example, the sound of the word ``cat'' does not specify the
+ breed of the cat, and the scene of a cat
+ may correspond to other words such as ``oxcicat'' and so on.
+ 
+ In this project, our goal is to develop a 
+ general-purpose spoken word embedding capable of capturing the
+ word-level semantics of a spoken language that may
+ not have a official orthography.
+ 
+\section{Related Works}
+The idea of multimodal learning with audio and
+visual inputs is not
+novel. \cite{Harwath16-ULO} proposed the first 
+neural network architecture to associate semantically similar speech 
+and image without any supervision. Later, \cite{Harwath18} went further to propose a
+network that can perform object localization 
+and word unit clustering after training end-to-end for semantic retrieval with speech
+and image. However, their word unit clustering
+used hand-annotated word-object pairs rather
+than automatically recognized ones. Also, the 
+approach requires around 1000 hours speech and
+400000 image-caption pairs, which is quite 
+computationally and memorywise expensive.
+
+What this project is different from the previous works is in three aspects. First, we aimed
+to investigate the tradeoff between context
+information and complexity of the content of
+speech. It is likely that longer sentences
+with more complex meaning will make the task of
+embedding learning harder and therefore requires
+more data, while shorter setences with too 
+little context will not only make the task ill-defined (not one-to-one) and challenging
+due to the highly random mapping between sounds
+and scenes. This project aims to find a sweet
+spot that makes the learning of embedding both data-efficient and semantic-guided.
+
+In addition, we would like to investigate on
+the effect of using different network 
+architetures. Most of the framework nowadays is
+retrieval-based, and a regression-based 
+approach may provide more accurate transfer from the visual embedding to the audio embedding. 
+
+Further, once the network learns the embedding,
+we would like to use the semantic
+embedding on tasks such as audio caption generation, possibly with the
+help of variational autoencoder \cite{Kingma14}. Another task of interest is
+ word unit discovery for low-resourced language. We would like to use the architecture
+ to find word-like units from a unsegmented sentence. 
+
+\section{Problem Formulation}
+The problem to solve in this idea is known as ``feature compensation'' in
+the speech enhancement literature. Suppose parts of the audio signal $\mathbf{x}$ 
+is corrupted, 
+as indicated by
+a mask filter $\mathbf{m}$, resulting in corrupted audio 
+$\mathbf{y} = \mathbf{m} * \mathbf{x}$. The goal is then to recover 
+$\mathbf{x}$ from $\mathbf{y}$. This can be more conveniently formulated 
+in the spectral domain: suppose the spectrogram for $\mathbf{x}$ and $\mathbf{m}$
+are $\bf{X}$ and $\bf{M}$ respectively, then $\bf{Y} = \bf{M} \odot \bf{X}$ and
+the estimated spectrogram will be $\hat{\bf{X}} = f(\bf{Y}; \bf{\Theta})$ for
+some function $f$. In the case of a speech signal, the original signal is the output of glottal pulse through the vocal tract, which can be approximated as a linear-time-invariant (LTI) system. $\bf{x}$ can be then expressed as a convolution:
+\begin{align*}
+    \bf{X}(f) &= \cal{F}\{l(t) * v(t) * g(t)\} = L(f)V(f)G(f)\\
+    \bf{Y}(f) &= M(f)L(f)V(f)G(f). 
+\end{align*}
+
+
+\section{Model Description}
+\section{Traditional Approaches}
+
+\section{GAN-based audio-visual spectrogram Feature compensator}
+Our model consists of two main modules: 
+the audio feature compensator based on Generative Adversarial Net
+and a semantic attention module to learn the mask. 
+
+The semantic embedder $E$ is trained
+using semantically coupled spoken caption and image, as described in
+\cite{Harwath17}.
+
+The audio feature compensator is inspired by the works in image inpainting \cite{Yeh17}.
+basic idea behind a GAN is two-fold: First, the model should be
+able to learn the distribution of the 
+spoken captions by learning a distribution of a latent vector that
+may encode the meaning shared by the caption and the image. This will
+ensure that the resulting audio to sound natural enough, e.g., uttered
+by a similar voice from the nearby audios. The first
+task can be learned by a minimax adversarial loss, a sampled regularized
+ negative log-likelihood loss or other stochastic approximation loss. 
+ Further, the model should be able to fill in the erased or corrupted 
+ region of the audio based on the contextual information of the other regions. For the purpose, $L_2$ or $L_1$ loss between the inpainted
+ spectrogram and the masked spectrogram may be used.
+ 
+To make the task similar to the image inpainting, we considered the spectral domain
+formulation of the feature compensation problem.
+
+\begin{comment}
+$\mathbf{Y}$ is then embedded by the pretrained embedder $E$:
+\begin{align}
+    \mathbf{z} = E(\mathbf{Y}_M).
+\end{align}
+\end{comment}
+
+First, we should train a GAN to generate spectrogram-like images with 
+a embedding vector randomly drawn from a zero-mean, unit-variance Gaussian distribution.
+can be used to generate the inpainted spectrogram via a generator network $G$:
+\begin{align}
+    \hat{\mathbf{X}} = G(\mathbf{z}).
+\end{align}
+The choice of the generator can
+be simply an up-convolution network. It can also be a U-net \cite{Ronneberger15} where the
+convolutional layer expression is:
+\begin{align}
+    \mathbf{z}^{l+1}_{j} =
+\sum_{i} Relu(\mathbf{W}_{ij}^{l} * \mathbf{z}^{l}_i + \mathbf{W}_{ij}^{L-l} \mathbf{z}^{L-l}_i + \mathbf{b}_j),
+\end{align}
+where the $\mathbf{W}_{ij}^{l}, l=0, ..., L, i=1, ..., C^{l}$
+are $1-D$ filters of length $N^l$ and $C^{l} = C^{L - l}$, $C^0 = C$
+is the number of frequency channels of the spectrogram.
+
+The loss function can be either Jensen-Shannon divergence or the more recent Wasserstein distance:
+\begin{align}
+\label{eq:adv_losses}
+    L_{a, 1}(X, \hat{X}) &= (\inf_J \int(\lVert \hat{X} - \hat{\bf{X}}\rVert ^p)^{1/p}dJ(\hat{\bf{X}}, \hat{\bf{X}}))^{1/p}\\
+    L_{a, 2}(X, \hat{X}) &= \frac{1}{2}KL(P_X || P_M) +  \frac{1}{2} KL(P_{G(\bf{z})} || P_M)
+\end{align}
+ where $L_1$ is in the objective for Wasserstein GAN \cite{Arjovsky17} and
+ $L_2$ is in the classic GAN, which suffers from the vanishing
+ gradient problem. When $p=1$, the first loss has 
+ a dual expression known as the Radon metric:
+ \begin{align}
+    L_{p, 1}(X, \hat{X}) &= \sup_f \int f(\bf{X}) d(P_{\bf{X}}(\bf{X}) - P_{G}(\hat{\bf{X}}))\\
+    &\approx \max_D \sum_{i=1}^{B} (D(\bf{X}) - D(G(\bf{z}))),
+ \end{align}
+where $f$ is Lipschitz-1 and can be approximated by a critic network
+with clipped weights.  
+
+During the compensation step,
+one part of the cost function for the reconstruction is the ``contextual loss'', which is a
+weighted $L_2$ or $L_1$ norm between $\hat{\mathbf{X}}$ and $\mathbf{Y}$:
+\begin{align}
+\label{eq:context_loss}
+    L_c(\mathbf{z}|\mathbf{M}, \mathbf{y}) = \lVert \bf{S} \odot \bf{W} \odot ( \mathbf{Y} - \hat{\mathbf{X}})\rVert_1,
+\end{align}
+where the weight matrix $\mathbf{W}$ has entries:
+\begin{align}
+W_{ij} &= 
+\begin{cases}
+     \sum_{j \in N(i)} \frac{1 - M_j}{|N(i)|} & M_i \neq 0 \\
+     0 & M_i = 0
+\end{cases}
+\end{align}
+The weights place more importance
+ on frames of spectrogram closer to the corrupted frames. We build upon this idea by having a extra set
+ of weights called the ``semantic scores'', denoted as $\bf{S} = S_1\bf{1}_C, ..., S_T\bf{1}_C$ which is generated by the pretrained semantic attention network:
+ as follows:
+ \begin{align}
+     S_t = \frac{1}{HW}\sum_{h=1}^{H}\sum_{w=1}^{W} R_{h,w,t},
+ \end{align}
+ where $\mathbf{R}$ is the matchmap defined in \cite{Harwath18}.
+
+Apart from closer to the original
+image in terms of $L_2$ loss, we hope the reconstructed spectrogram 
+to look as close as a natural speech as possible. A natural objective
+for scoring ``naturalness'' is to employ
+the descriminator $D$ in GAN to estimate how likely
+the reconstructed spectrogram is transformed from natural speech, 
+denoted as $L_a(\bf{X}) = \log D(G(\bf{z}))$.
+
+The total loss is then:
+\begin{align}
+    L(\bf{z}|\bf{M}, \bf{y}) &= \lambda L_c(\bf{z}|\bf{M}, \bf{Y}) + L_a(\bf{z})     \\
+    z^* &= \arg \min_z L(\bf{z})\\
+    \hat{X} &= G(z^*).
+\end{align}
+
+Notice that the task could have been done with a much simpler model
+referred to as the ``retrieval-based'' model. Specifically, the 
+best ``compensated'' spectrogram will be the spectrogram from 
+a database closest to the spectrogram according to some distance 
+metrics, such as the cepstral distance:
+\begin{align}
+    D(\bf{X}, \hat{\bf{X}}) = \lVert \log (\bf{X}) - \log (\bf{X})\rVert_2
+\end{align}.
+
+\section{Alternative: VAE-based model}
+\cite{Hsu17}\cite{Hsu18} has proposed a generative framework to generate and transform speech with VAE.
+The idea of an VAE is the following: Suppose we 
+have can approximate of the likelihood function
+$p_{\theta}(\bf{x}|\bf{z})$, to learn the posterior, instead of performing stochastic approximation,
+it seeks to minimize a lower bound of the log
+probability for $\bf{x}$ by introducing an regularizer for the
+approximated posterior, $q_\phi(\bf{z})$. The same loss as the \ref{eq:context_loss} plus a
+regularization term can be used.
+
+\section{Current Progress}
+
+\section{Planned experiment}
+\subsection{Model Training and Evaluation}
+We plan to train both a GAN and Wasserstein GAN with CNN generators.
+Two types of CNN generator will be used: the generator in DCGAN and the U-Net. A retrieval-based network will be used as a baseline. 
+Batch-normalization will be used to avoid vanishing gradients and
+we will follow hyperparameters mentioned in \cite{Yeh17}.
+
+Spectrogram module from librosa will be used with the setting similar
+to \cite{Harwath17}. The network will be trained and tested on 
+SpeechCOCO.
+
+% Baseline
+
+% Evaluation Metric
+The evaluation metricS we will use are manual evaluation and
+Perceptual SNR in dB:
+\begin{align}
+    PSNR = 20 \log_{10} \frac{1}{\lVert \bf{X} - \hat{\bf{X}}\rVert}
+\end{align}
+
+\subsection{Additional experiments}
+We will carry out an analysis on the effect of the perceptual and 
+contextual loss for speech inpainting and provide an t-SNE 
+visualization of the embedding dimension if time permits.
+
+We will also experiment with adding bandpass/lowpass filter to
+the spectrogram as well as irregular shape of masks to test 
+the robustness of the inpainting. Further, we will test the 
+possibility of formulating speech enhancement as an inpainting 
+problem by adding white noise to the speech.
+
+
+\bibliographystyle{IEEEtran}
+
+\bibliography{limingwang_mlslp.bib}
+\end{document}

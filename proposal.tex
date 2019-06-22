@@ -1,0 +1,184 @@
+\documentclass[a4paper]{article}
+
+\usepackage{INTERSPEECH2018}
+\usepackage{hyperref}
+
+\title{Project Proposal: Multimodal Embedding of Word Meaning with Spoken word and Image}
+\name{Liming Wang$^1$}
+\address{University of Illinois, Urbana Champaign}
+\email{lwang114@illinois.edu}
+
+\begin{document}
+\maketitle
+\section{Introduction}
+Generating embedding vectors for concepts in spoken 
+language
+and images
+without any textual description is useful for tasks
+that require automatic understanding of under-resource languages, such as name entity recognition and
+automatic word unit discovery. In the long run, it
+may also have a impact on active learning robots that
+learn to use a language by hearing people talking.
+An embedding that not only
+captures similarities of words with similar sounds but also with 
+similar meanings as defined by the visual scene it 
+corresponds to is, however, challenging. One challenge
+is that the mapping between word sound and the
+visual object is in general, random for most human
+language, and as a result, the standard Gaussian 
+assumption or cosine similarity fails to capture the
+ meaning of spoken sounds. This is in sharp contrast
+ with lower-level task such as speech recognition
+ or speaker identification, where
+ speech segments tends to represent the same
+ token with speech segments that are closer in amplitude to them and different token that are further. 
+ 
+ Another challenge is that the mapping between speech
+ and image may not be one to one in either direction.
+ For example, the sound of the word ``cat'' does not specify the
+ breed of the cat, and the scene of a cat
+ may correspond to other words such as ``oxcicat'' and so on.
+ 
+ In this project, our goal is to develop a 
+ general-purpose spoken word embedding capable of capturing the
+ word-level semantics of a spoken language that may
+ not have a official orthography.
+ 
+\section{Related Works}
+The idea of multimodal learning with audio and
+visual inputs is not
+novel. \cite{Harwath16-ULO} proposed the first 
+neural network architecture to associate semantically similar speech 
+and image without any supervision. Later, \cite{Harwath18} went further to propose a
+network that can perform object localization 
+and word unit clustering after training end-to-end for semantic retrieval with speech
+and image. However, their word unit clustering
+used hand-annotated word-object pairs rather
+than automatically recognized ones. Also, the 
+approach requires around 1000 hours speech and
+400000 image-caption pairs, which is quite 
+computationally and memorywise expensive.
+
+What this project is different from the previous works is in three aspects. First, we aimed
+to investigate the tradeoff between context
+information and complexity of the content of
+speech. It is likely that longer sentences
+with more complex meaning will make the task of
+embedding learning harder and therefore requires
+more data, while shorter setences with too 
+little context will not only make the task ill-defined (not one-to-one) and challenging
+due to the highly random mapping between sounds
+and scenes. This project aims to find a sweet
+spot that makes the learning of embedding both data-efficient and semantic-guided.
+
+In addition, we would like to investigate on
+the effect of using different network 
+architetures. Most of the framework nowadays is
+retrieval-based, and a regression-based 
+approach may provide more accurate transfer from the visual embedding to the audio embedding. 
+
+Further, once the network learns the embedding,
+we would like to use the semantic
+embedding on tasks such as audio caption generation, possibly with the
+help of variational autoencoder \cite{Kingma14}. Another task of interest is
+ word unit discovery for low-resourced language. We would like to use the architecture
+ to find word-like units from a unsegmented sentence. 
+
+
+
+\section{Problem Formulation}
+% Key issue: How can we use
+% the semantic embeddings for
+% other tasks, such as
+% topic classification of
+% a spoken sentence, 
+ 
+ 
+ 
+
+\section{Model Description}
+% 1. What are the features? 
+% 2. What is the baseline? 
+% 3. What is the advantage of using 
+% speech rather than say, text?
+% 4. How to visualize what the
+% network learns?
+% 5. How to evaluate the quality of the speech
+% 6. Some ideas of what experiments to run
+For our baseline DAVEnet, our model consists of the following
+parts.
+In the preprocessing stage, the spoken caption,
+word segment infomation, bounding box information and caption texts are stored into
+a dictionary. 
+In the feature extraction stage, the
+speech caption is converted to Mel-filterbank
+with augmentations such as mean subtraction
+and pre-emphasis. Then the speech caption is
+zero-padded/truncated to the same dimension.
+
+A two-branch network will be used for both
+training and testing. On the image side, a 
+pretrained image classification network such as \textit{Resnet} is used to learn
+the regional embeddings. We may also use a pretrained \textit{VGG16} net replacing the
+penultimate fully connected layer with
+additional convolutional layers to learn
+the regional embeddings. 
+
+During training, a minibatch dataloader is used
+to load a batch of image-caption pair, with 
+batch size adjustable. Gradient descent with
+ADAM or Momentum will be used. The network will
+be trained on a sampled hinge-loss function.
+All the embeddings and model weights will be stored after training. The retrieval results
+will also be save in a file for later 
+evaluation and error analysis.
+
+The evaluation part will involve mainly an
+evaluator for computing recall, ranking error, IoU, etc. 
+
+\section{Experiment}
+There are three experiments we would like to run. The first is speech-to-image retrieval with all models. 
+
+There are three models we need to implement:
+the DAVEnet from \cite{Harwarth18}, the regression AVEnet and a text-based model. The
+text-based model is our baseline that gives an
+upperbound of the performance. Word2vec
+will be used as the textual embedding. The DAVEnet from existing work is used to compare
+against our model to see if it learns anything
+statistically significant. The usual recall 
+will be used as the main evaluation metric.
+
+Another experiment we would like to run is the
+effect of contextual speech in multimodal semantic embedding. DAVEnet will be used in
+this experiment. The baseline will be trained to whole sentences and test on a single
+word. The other models will be trained on single words, bigrams and trigrams respectively and tested again on single word. The embedding will
+be visualized using t-SNE and evaluated based
+on \textit{cluster purity} and IoU localization score for object . We
+follow \cite{Harwath18} to use a manually-specified list of concepts. We may 
+also do the same experiments on the
+regression-based model.
+
+The last experiment we would like to work on
+will be noun-detection with continuous speech.
+If time permits, we would also like to do some
+initial experiments with audio caption generation from image.
+
+\section{Resources}
+We will use PyTorch as the deep learning framework. \cite{Harwath18} released their code
+on \href{https://github.com/dharwath/DAVEnet-pytorch}{https://github.com/dharwath/DAVEnet-pytorch}, which we will use as the baseline of 
+this project. Our initial experiments will be
+done on SpeechCOCO \cite{Havard17} which contains around 600k synthetic spoken captions
+and images, with bounding boxes, speaker info 
+and word segmentations available. We will store the metainfomation
+of our data using JSON library in python.
+
+\section{Timeline}
+Jan. $5^{th}$ - Finish the code for DAVEnet and
+Regression AVEnet.
+Jan. $10^{th}$ - Run initial experiments for sp2im retrieval on MSCOCO. 
+
+\bibliographystyle{IEEEtran}
+
+\bibliography{limingwang_mlslp.bib}
+
+\end{document}

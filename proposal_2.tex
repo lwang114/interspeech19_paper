@@ -1,0 +1,208 @@
+\documentclass[a4paper]{article}
+\usepackage{INTERSPEECH2019}
+\usepackage{hyperref}
+\usepackage{comment}
+
+\title{Project Proposal: Multimodal Word Discovery with Phoneme Units and Images}
+\name{Liming Wang$^1$}
+\address{University of Illinois, Urbana Champaign}
+\email{lwang114@illinois.edu}
+
+\begin{document}
+\maketitle
+
+%\section{Notations}
+\section{Problem Formulation}
+\subsection{Word discovery as translation}
+Suppose we have a sequence of phoneme indices $\pi_1, ..., \pi_T$ and a sequence of image concepts $l_1, ..., l_U$, where $\pi \in \Pi, l \in \Lambda\cup \{null\}$ and $U < T$. Given $(\pi, l)$, the goal of our algorithm is a sequence learning problem to align each phoneme label $\mathbf{x} = [x_1, x_2, \ldots, x_{T_x}]$ to an image concept $\mathbf{y} = [y_1, y_2, \ldots, y_{T_y}]$. We assume that $T_y < T_x$ and one phoneme label is only associated with one or none of the image concepts. In other words, we define an alignment matrix $A \in \{0, 1\}^{T_y  \times T_x}, \mathbf{A} = [\mathbf{a}_1 \ldots \mathbf{a}_{T_x}] = [\tilde{\mathbf a}_1^{\top} \ldots \tilde{\mathbf a}_{T_y}]^\top$, and we have:
+\begin{align}\label{eq:cluster_constraint}
+\sum_{i=1}^{T_y} a_{it} = 1, \forall t \in \{1, \ldots, T_x\}
+\end{align}
+The reason for having 
+$T_y$ is that we accounts for the caseThen our model tries to learn to maximize:
+\begin{align}\label{eq:trans_prob}
+    &p(\mathbf{y}_1\ldots \mathbf{y}_{T_y}|\mathbf{x}_1,...,\mathbf{x}_{T_x})\\ 
+    &= \sum_{\mathbf{A}\in \{0, 1\}^{T_y  \times T_x}} p(\mathbf{A}|\mathbf{x}) p(\mathbf{y}|\mathbf{x})\\
+    &= \sum_{\mathbf{a}_1\ldots\mathbf{a}_{T_y}} p(\mathbf{a}_1\ldots\mathbf{a}_{T_y}|x_1\ldots x_{T_x}) p(y_1\ldots y_{T_y}|x_1\ldots x_{T_x}, \mathbf{a}_1\ldots \mathbf{a}_{T_y}),
+\end{align}
+for each input phoneme-concept sequence pair. 
+
+Suppose there is a ``dominant alignment'' $\mathbf{A}^*$such that $p(\mathbf{a}_1^*\ldots\mathbf{a}_{T_y}^*|x_1\ldots x_{T_x})\approx 1$, \ref{eq:trans_prob} is then simplified to one term:
+\begin{align}\label{eq:trans_prob_dominant}
+     &p(\mathbf{y}_1\ldots \mathbf{y}_{T_y}|\mathbf{x}_1\ldots\mathbf{x}_{T_x})\\
+     &\approx p(\mathbf{y}_1\ldots \mathbf{y}_{T_y}|\mathbf{x}_1\ldots\mathbf{x}_{T_x}) \approx p(\mathbf{y}_1\ldots \mathbf{y}_{T_y}|\mathbf{x}_1\ldots\mathbf{x}_{T_x}, \mathbf{a}^*_1\ldots\mathbf{a}^*_{T_y}).
+\end{align}
+Another simplification we can make is to compress the one-hot representations of the phoneme sequence $\mathbf{x}_i, i=1,...,T_x$ into a lower-dimensional embedding vector $\mathbf{h}_i, i=1,...,T_x$ and learn the dominant alignment with a soft alignment:
+\begin{align}\label{eq:attention}
+    a^*_{it} &:= \mathbf\alpha_{it} =  \frac{\exp(e_i(\mathbf h(\mathbf x_t), \mathbf s_{i-1}))}{\sum_{j=1}^{T_y} \exp(e_j(\mathbf h(\mathbf{x}_t), \mathbf s_{i-1}))}\\
+    \mathbf{c}_i &= \sum_{t=1}^{T_x} a^*_{it} \mathbf{h}_{t},
+\end{align}
+where $\mathbf e(\cdot)$ can be learned by a neural network and $\mathbf{c}_i$ is called the \textit{context vector} in a typical encoder-decoder architecture \cite{Bauhdanau14}.
+Let $\mathcal C_i, i=\{1,...,T_y\}$ be the corresponding cluster of phoneme indices of a given image concept, we assume then $\mathbf{y}_i$ is independent of $x_j, j\not\in \mathcal C_i$ and independent of $x_j, j\in \mathcal C_i$ given $c_i$. A main difference of
+our network from the architecture in \cite{Bahdanau14} is that instead of normalizing the energy over the time steps of the input phoneme sequence, our network normalizes across the attention weights corresponding to the output image concepts for each phoneme. This helps ensure the assumption in Eq. (\ref{eq:cluster_constraint}) is satisfied and our alignment for each phoneme is sparse across image concepts.
+Plug Eq. (\ref{eq:attention}) into Eq. (\ref{eq:trans_prob_dominant}):
+\begin{align}
+    &p(y_1\ldots y_{T_y}|x_1\ldots x_{T_x})\\
+    &= \prod_{i=1}^{T_y} p(y_i|y_1,\ldots, y_{i-1}, \{x_j:j \in \mathcal C_i\}, \mathbf{a}^*_1 \ldots\mathbf{a}^*_{T_y})\\
+    &= \prod_{i=1}^{T_y} p(y_i|y_1,\ldots,y_{i-1}, c_i).
+\end{align}
+The set of probabilities $\{p(y_i|y_1,\ldots,y_{i-1})\}_{i=1}^{T_y}$ can be learned using a recurrent neural net by defining a set of state vectors $s_1,\ldots,s_{T_y}$ such that:
+\begin{align}
+    &\mathbf{s}_{i+1} := f(\mathbf{s}_i, y_i, \mathbf{c}_{i+1})\\
+    &p(y_i|y_1,\ldots,y_{i-1}, c_i) := \sigma(s_i) :=  g(s_{i-1}, y_{i-1}, c_i).
+\end{align}
+
+Now the task reduce to learn the functions $f, g, h$ such that the estimated log likelihood $\log p(\mathbf{y}|\mathbf{x}, \theta)$ is maximized.
+
+Alternatively, we can learn the probability of a phoneme sequences given a set of image concepts:
+\begin{align}\label{eq:smt_trans_prob}
+    p(x_1\ldots x_{T_x}|y_1\ldots y_{T_y}) &= \sum_{a_1 = 0}^{T_y} \sum_{a_2 = 0}^{T_y}\ldots \sum_{a_{T_x} = 0}^{T_y} p(\mathbf a|y_1\ldots y_{T_y})  \\
+    &p(\mathbf x \ldots \mathbf x_{T_x}|\mathbf{y}_1\ldots \mathbf y_{T_y}, \mathbf{a}).
+\end{align}
+Following \cite{Brown92}, we make use of the following assumption:
+\begin{enumerate}
+    \item The alignment is equally likely given only $y^{T_y}=y_1\ldots y_{T_y}$: 
+    \begin{align}\label{eq:ibm1_align_prob}
+        p(\mathbf a|y_1\ldots y_{T_y}) &= \frac{\epsilon}{(T_y+1)^{T_x}},
+    \end{align}
+    where $\epsilon$ is some normalization constant.
+    \item Given the alignment $\mathbf a \in [T_y]^{T_x}$, $\forall y_j, j\neq a_i$ is conditionally independent of $x_i$:
+    \begin{align}\label{eq:ibm1_trans_prob}
+        p( x \ldots  x_{T_x}|y_1\ldots y_{T_y}, \mathbf{a}) = \prod_{i=1}^{T_x} p(x_i|x_{i-1}\ldots x_{1}, y_{a_i}),
+    \end{align}
+    \item The sequence $x^{T_x} = x_1 \ldots x_{T_x}$ can be modeled as an n-gram given $y^{T_y}$:
+    \begin{align}
+        p(x_i|x_{i-1}\ldots x_{1}, y_{a_i}) = p(x_i|x_{i-1}\ldots x_{i-n}, y_{a_i})
+    \end{align}
+    for all $i>n$.
+        
+\end{enumerate}
+Eq. (\ref{eq:smt_trans_prob}) is then simplified to:
+\begin{align}
+    &\frac{\epsilon}{(T_y+1)^{T_x}}\sum_{a_1 = 0}^{T_y} \sum_{a_2 = 0}^{T_y}\ldots \sum_{a_{T_x} = 0}^{T_y} 
+    \prod_{i=n}^{T_x}p(x_i| x_{i-1}\ldots x_{i-n}, y_{a_i}).
+\end{align}
+Combined with the constraint that $\sum_{x\in\Pi} p(x| x_{i-1}\ldots x_1, y_{a_i}) = 1$ following \cite{Brown92}, we can write down the auxiliary function:
+\begin{align}\label{eq:ibm1_auxiliary}
+    h(p, \lambda) = \sum_{\mathbf{a}}\frac{\epsilon}{(T_y+1)^{T_x}} p(\mathbf x|\mathbf y, \mathbf a) - \sum_{l, \pi^{n-1}} \lambda_{l, \pi^{n-1}} \sum_{\pi \in \Pi} p(\pi|\pi^{n-1}, l),
+\end{align}
+which can be solved with EM algorithm and result in an iterative formula for $p(\pi|\pi^{n-1}, l)$:
+\begin{align}\label{eq:smt_em_trans_prob}
+    p(\pi|\pi^{n-1}, l) &= \frac{c(\pi|\pi^{n-1}, l; \mathbf{x}, \mathbf{y})}{\sum_{\pi' \in \Pi}c(\pi'|\pi^{n-1}, l; \mathbf{x}, \mathbf{y})},
+\end{align}
+where $c(\pi|\pi^{n-1}, l)$ is the expected count of a given phoneme-concept pattern: 
+\begin{align*}
+    c(\pi|\pi^{n-1}, l) &:= \sum_{\mathbf a} p(\mathbf a|\mathbf x, \mathbf{y}) \sum_{i=n}^{T_x} \mathbf{1}[x_i^n=\pi^n, y_{a_i}=l] \\
+    &= \frac{p(\pi|\pi^{n-1}, l)}{\sum_{i=1}^{T_y} p(\pi|\pi^{n-1}, y_i)} (\sum_{j=n}^{T_x} \mathbf{1}[x_j^n=\pi^n])(\sum_{k=1}^{T_y} \mathbf{1}[y_k=l]).
+\end{align*}
+The optimal alignment between the phonemes and image concepts can be then obtained by finding the highest-scored translation pair of a given sentence:
+\begin{align}\label{eq:smt_alignment}
+    a^*_i = \arg\max_j p(x_i|x^{n-1}_i, y_j).
+\end{align}
+
+\subsection{Word discovery as language modeling}
+Another way to formulate the multimodal word discovery problem is to formulate it as a language modeling problem with image concepts as additional information source. Intuitively, we seek a model capable of predicting the next phoneme given the previous phonemes and all image concepts appeared in the sentence, based on the probability $p(x|x^{n-1}) = \sum_{l\in\Lambda}p(x|x^{n-1}, l)$. Then, we can find the best concept-phoneme alignment $\mathbf{a}$ that gives rise to the lowest perplexity score.
+
+Our purpose fits naturally into the framework of maximum entropy language modeling (MaxEnt LM) \cite{Lau93}. Unlike traditional n-gram language models, which uses only the length-n window of words as the information source, MaxEnt LM makes use of observations from \textit{more than one} information source. Let all the context available for a given symbol $x$ be $h$, each information source is essentially a partition of the event space (x, h), and each component of the partition is a set called the \textit{equivalent class}. Each event (x, h) in the equivalent class will be encoded in the same way in terms of their empirical distribution. To combine the information sources is essentially assigning a new probability distribution to each component of the finer partition formed by intersecting the partitions of the sources. For example, in our word discovery problem, the history is all the phoneme sequences and all the image concepts appeared before the current phoneme. We have two information source. The first one is an \textit{n-gram} source that may assign the same probability to all the $(x, h)$ with the same phoneme $x$ and any history ending with the word strings $x^{n-1} = x_{-1}\ldots x_{-(n-1)}$:
+\begin{align}\label{eq:ME_bigram_source}
+    p_1(x|h) = \frac{C(x, x^{n-1})}{\sum_{x'}C(x', x^{n-1})} = \bar{p}(x, y).
+\end{align}
+The second information source is a $\textit{trigger}$ source \cite{Lau93} that assigns the same probability for the word $x$ as long as the image concept $y$ appears in the history:
+\begin{align}\label{eq:ME_trigger_source}
+    p_2(x|h) = \frac{C(x, y\in h)}{\sum_{x'}C(x', y\in h)} = \bar{p}(x^n).
+\end{align}
+
+While it is clear that for a fixed $(x, h)$, the probability assigned by different information sources will be different in general,
+therefore it is impossible to use both of the observation directly at the same time, the key insight of MELM is that the model has a significant amount of freedom to be consistent with the observations in \textit{average}. For our example, the constraints are:
+\begin{align}\label{eq:ME_constraint}
+    \sum_{h:h^{(n-1)} = x^{(n-1)}}\bar{p}(h)p_{12}(x|h) &= p_{1}(x, h) = \bar{p}(x, y)\\
+    \sum_{h:y\in h}\bar{p}(h)p_{12}(x'|h) &= p_{2}(x, h) = \bar{p}(x^n),
+\end{align}
+where $\bar{P}(h)$ is the empirical distribution of the history. Note there are $V^{n}+VL$ constraints in our system which is smaller than the number of parameters ($V^{n+L}$) in our system. Therefore, we are free pick one distribution from the feasible set with the highest entropy, or the ``flattest'' solution. The problem is then reduced to:
+\begin{align}\label{eq:ME_formulation}
+    \max_{\mathbf{p}} H(\mathbf{p}) = \max_{\mathbf{p}} \sum_{y, x^n} p_{12}(x^n, y) \log \frac{1}{p_{12}(x|x^{n-1}, y)},
+\end{align}
+subject to constraints Eq. (\ref{eq:ME_constraint}).
+
+Once the model learns the probabilities, the phoneme alignment to the image concept can be found via Eq. (\ref{eq:smt_alignment}).
+
+\section{Model Description}
+\subsection{Phase One}
+To tackle the translation formulation of the word discovery problem, we will employ two types of models: A neural-based translation model described in \cite{Bahdanau14} and a statistical translation model based on \cite{Brown93}. 
+
+For the neural-based translator, our baseline network will be an encoder-decoder structure typically used
+in sequence learning problem with phoneme units as inputs and image concepts as outputs. The encoder transforms phonemes into embeddings, and we can use the standard bi-directional LSTM or dilated RNN for machine translation tasks. The decoder uses attention and a RNN. We may experiment with various kinds of attention mechanism.
+
+For the language modeling formulation, we will again use two types of models: the maximum-entropy based model and the neural language model. For the MaxEnt LM, we may need to experiment with different lengths of the context window in order to both model the conditional dependence between phonemes while keeping the algorithm memory-efficient. For the neural language model, I have not decided the specific architecture to use.
+But in general, some kind of self-attention mechanism may be used to embed the different image concept vectors into a single vector, which can be fed into a LSTM LM together with the phoneme inputs at each step; or some kind of mixture networks that combined various concept-based language models together, like the one described in \cite{Kalai99}.
+
+We will implement the models in Python. We may use XNMT and Pytorch to implement our neural-based models and NLTK for our statistical based method.
+
+\subsection{Phase Two}
+The system described in 
+
+\section{Dataset}
+We will use Flickr8k and MSCOCO together as dataset. The problem of only using Flickr8k is that the amount of phoneme in the textual descriptions may not be enough for training an encoder-decoder architecture. But MSCOCO contains 0.4 million captions with around 8-10 words each caption, the total amount of phonemes will be around 10 M which will be much closer to the 400 M words data typically used for training encoder-decoder. Plus, the length of our target language
+is image concepts, which can be seen as a low-vocabulary language of at most 1000 vocabularies. Since typically there will be  The ``sentence length'' will be around 1-5 per image since there are typically 1-5 objects in each image of MSCOCO.  
+
+\section{Evaluation Metrics}
+\subsection{Phase One}
+There are three main possible categories of evaluation metrics we can use. One category will be a direct and fully automated metrics. For example, one way will be to find the overlap ratio of the discovered word and the word with the closest boundaries in a given sentence, which will be some kind of clustering purity or intersection-over-union (IoU) score. Or we can
+plug the closest word that matches the current discovered unit and find its Wordnet distance or other semantic similarity scores from the true image concepts. In this way, we can even conduct an experiment to retrieve a small set of images from a given phoneme strings.
+
+The second category will be indirect metrics. For example, we can apply our language models to do lattice rescoring for speech recognizer and evaluate its performance.
+
+The last category will involved human judge. For example, design a mechanical turk survey to ask people to tell how close the phoneme sequence is to a single word.
+
+\subsection{Phase Two}
+Since there is no ground-truth frame-level alignments available for Flickr, we will use the forced alignment labels as ``silver standard'' to compare various word discovery system. With the forced alignment labels, retrieval-based metrics like recall, precision, F-measure can be computed on a frame-level. Further, we will compare the phone-level forced alignment with the outputs generated by our subword clustering systems to faciliate debugging. 
+
+\section{Experiments}
+% Preliminary experiments: Use cheating models to see how much effect is image concept has to reduce phoneme perplexity. For example, the probability of the difference between the phoneme sequence ``cat'' when no cat concept is present versus when the cat concept is present.
+Our experiments will be three-staged. First, we will train and evaluate our systems or word sequences and image concepts. The image concepts can be ground-truth or extracted by some large-scale image classifier like VGG 16. So the problem will become essentially finding word clusters. We can judge the results by the semantic-based metrics mentioned above and compared it with methods like Brown's clusters \cite{Brown92}.  
+
+Next, we will evaluate our systems on actual phoneme sequences. We will test the effect of context length and have a detail analysis of the discovered word units qualities with various metrics described above. We will also compare the performance of neural-based approach and statistical approach for word discovery.
+
+In the last stage, we may test our system on more realistic settings. For example, we may test our system on an under-resourced language without a pronunciation dictionary; or we can try to predict the phonemes from an ASR system and image concepts from a neural network system instead of the ground-truth labels.  
+
+we may also visualize what the models learn. With the built-in attention mechanism, it is intuitive to extract the attention weights from the network and analyze the clustering result. Also, it is possible to visualize the embeddings of variable-length phoneme sequences into a common space by taking a weighted sum of its encoder output weighted by its attention weights associate with its clusters.
+
+\begin{comment}
+In either stage, our experiments should address the following questions:
+\begin{enumerate}
+    \item How well does the model learn?
+    \item Which model learns the best?
+    \item What does the network learn, does it cluster word sequences with similar meaning together in its embedding space?
+
+    \item When and why the method fails?
+\end{enumerate}
+\end{comment}
+
+\section{Tentative Timeline}
+\textit{Phase one}: Interspeech submission
+
+Feb. 17th - Read papers and finished implementing the statistical MT and the neural MT
+
+Feb. 24th - Finish implementing the MaxEnt LM and finish preliminary experiments
+
+Feb. 31st - Finish the final experiments and compile the results
+
+Mar. 7th - Potential improvements and try to implement the neural-based LM
+
+Mar. 14th - Finish writing the experiment section of the paper
+
+Mar. 21st - Finish the final draft of the paper\\
+
+\textit{Phase two}: Journal paper
+
+Apr. 14th - Finish experiments with HMM-based model on phonemes; start working on audio-based models (neural and statistical)
+
+Apr. 21st - Finish implementing audio-based neural and statistical models and preliminary experiments with them; start implementing Kamper and Livescu's ZSR model
+
+Apr. 28th - Finish the Kamper and Livescu's model; start comparison of models (KL'model and Goddard's model)
+
+May. 12th - Finish comparing the directly-related models; compare with other models (TBD, may be Lee and Glass's model and IBM model 3-5)
+\bibliographystyle{IEEEtran}
+\bibliography{sp2019_refs.bib}
+ 
+\end{document}
